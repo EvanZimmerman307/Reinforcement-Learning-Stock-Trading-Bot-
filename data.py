@@ -17,10 +17,21 @@ def get_data(tickers):
     stock_data = {}
     for ticker in tickers:
         df = yf.download(ticker, start="2009-01-01", end="2023-05-08")
+        df = df[['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']]
+        df.index = df.index.date
+        # Name the index
+        df.index.name = 'Date'
         stock_data[ticker] = df
     return stock_data
 
 stock_data = get_data(tickers)
 
+# Explicit column names to avoid confusion
+column_names = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+
+# Save to CSV with explicit headers
 for ticker, df in stock_data.items():
-    df.to_csv(f'{ticker}.csv')
+    # Reset the column names just in case
+    df.columns = column_names
+    # Ensure the 'Date' is used as the index in the CSV
+    df.to_csv(f'{ticker}.csv', index=True)
