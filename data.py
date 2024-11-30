@@ -9,6 +9,12 @@ tickers = [
     'PFE', 'PG', 'TRV', 'UNH', 'RTX', 'VZ', 'V', 'WBA', 'WMT', 'XOM'
 ]
 
+current_tickers = [
+    'MMM', 'AMZN', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'KO',
+    'GS', 'HD', 'HON', 'IBM', 'JNJ', 'JPM', 'MCD', 'MRK', 'MSFT', 'NKE',
+    'NVDA', 'PG', 'CRM', 'SHW', 'TRV', 'UNH', 'VZ', 'V', 'WMT', 'DIS'
+]
+
 def get_data(tickers):
     """
     Make a dictionary where the key is a ticker and the value 
@@ -16,7 +22,8 @@ def get_data(tickers):
     """
     stock_data = {}
     for ticker in tickers:
-        df = yf.download(ticker, start="2009-01-01", end="2023-05-08")
+        # market recovered June 2009
+        df = yf.download(ticker, start="2009-06-01", end="2024-11-01") # was start="2009-01-01", end="2023-05-08"
         df = df[['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']]
         df.index = df.index.date
         # Name the index
@@ -24,7 +31,7 @@ def get_data(tickers):
         stock_data[ticker] = df
     return stock_data
 
-stock_data = get_data(tickers)
+stock_data = get_data(current_tickers)
 
 # Explicit column names to avoid confusion
 column_names = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
@@ -34,4 +41,4 @@ for ticker, df in stock_data.items():
     # Reset the column names just in case
     df.columns = column_names
     # Ensure the 'Date' is used as the index in the CSV
-    df.to_csv(f'{ticker}.csv', index=True)
+    df.to_csv(f'data_current/{ticker}.csv', index=True)
