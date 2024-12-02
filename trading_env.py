@@ -6,14 +6,15 @@ import pandas as pd
 class StockTradingEnv(gym.Env):
     metadata = {'render_modes': ['human']}
     
-    def __init__(self, stock_data, transaction_cost_percent=0.005):
+    def __init__(self, stock_data, vix_data, transaction_cost_percent=0.005):
         super(StockTradingEnv, self).__init__()
         
         # Remove any empty DataFrames
-        self.stock_data = {ticker: df for ticker, df in stock_data.items() if not df.empty}
+        self.stock_data = {ticker: df for ticker, df in stock_data.items()} # this includes VIX, remove VIX
+        self.vix_data = vix_data['Close'].to_numpy()
         self.tickers = list(self.stock_data.keys())
         
-        
+
         # Calculate the size of one stock's data
         sample_df = next(iter(self.stock_data.values()))
         self.n_features = len(sample_df.columns) # number of features for each stock (i.e price and TAs)
@@ -35,13 +36,15 @@ class StockTradingEnv(gym.Env):
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.obs_shape,), dtype=np.float32)
         
         # Initialize account balance
-        self.initial_balance = 1000
+        self.initial_balance = 10000
         self.balance = self.initial_balance
         self.net_worth = self.initial_balance
+        self.prev_net_worth = self.initial_balance
         self.max_net_worth = self.initial_balance
         self.shares_held = {ticker: 0 for ticker in self.tickers}
         self.total_shares_sold = {ticker: 0 for ticker in self.tickers}
         self.total_sales_value = {ticker: 0 for ticker in self.tickers}
+
         
         # Set the current step
         self.current_step = 0
@@ -60,6 +63,7 @@ class StockTradingEnv(gym.Env):
         super().reset(seed=seed)
         self.balance = self.initial_balance
         self.net_worth = self.initial_balance
+        self.prev_net_worth = self.initial_balance
         self.max_net_worth = self.initial_balance
         self.shares_held = {ticker: 0 for ticker in self.tickers}
         self.total_shares_sold = {ticker: 0 for ticker in self.tickers}
@@ -109,12 +113,28 @@ class StockTradingEnv(gym.Env):
         
         current_prices = {}
         # Loop through each ticker and perform the action
+        # if self.vix_data[self.current_step] > 50:
+        #     for i, ticker in enumerate(self.tickers):
+        #         current_prices[ticker] = self.stock_data[ticker].iloc[self.current_step]['Close']
+        #         shares_to_sell = int(self.shares_held[ticker])
+        #         sale = shares_to_sell * current_prices[ticker]
+        #         # Transaction cost
+        #         transaction_cost = sale * self.transaction_cost_percent
+        #         # Update the balance and shares held
+        #         self.balance += (sale - transaction_cost)
+        #         # Update the total shares sold
+        #         self.shares_held[ticker] -= shares_to_sell
+        #         # Update the shares sold
+        #         self.total_shares_sold[ticker] += shares_to_sell
+        #         # Update the total sales value
+        #         self.total_sales_value[ticker] += sale
+        # else:
         for i, ticker in enumerate(self.tickers):
             # Get the current price of the stock
             current_prices[ticker] = self.stock_data[ticker].iloc[self.current_step]['Close']
             # get the action for the current ticker
             action = actions[i]
-            
+            # if self.vix_data[self.current_step] < 50:
             if action > 0:  # Buy
                 # Calculate the number of shares to buy
                 # shares to buy is proportion of balance / current_price
@@ -146,13 +166,19 @@ class StockTradingEnv(gym.Env):
                 # Update the total sales value
                 self.total_sales_value[ticker] += sale
         
-        # Calculate the net worth
+        # Calculate(updating) the net worth
+        self.prev_net_worth = self.net_worth
         self.net_worth = self.balance + sum(self.shares_held[ticker] * current_prices[ticker] for ticker in self.tickers)
         # Update the max net worth
         self.max_net_worth = max(self.net_worth, self.max_net_worth)
         # Calculate the reward
-        # the reward is just networth so far
-        reward = self.net_worth - self.initial_balance
+        # the reward is just net worth so far
+        #reward = self.net_worth - self.initial_balance
+        reward = self.net_worth - self.prev_net_worth # positive is good
+
+        if self.vix_data[self.current_step] > 30:
+            reward -= sum(self.shares_held.values())
+
         # Check if the episode is done
         done = self.net_worth <= 0 or self.current_step >= self.max_steps
         
