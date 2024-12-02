@@ -7,6 +7,7 @@ from agents import SimpleAvgEnsembleAgent, A2CAgent, PPOAgent, A2CAgent, DDPGAge
 import matplotlib.pyplot as plt
 from stable_baselines3.common.vec_env import DummyVecEnv
 from sklearn.ensemble import RandomForestRegressor
+import xgboost as xgb
 
 def add_technical_indicators(df):
     df = df.copy()
@@ -263,7 +264,15 @@ meta_features = np.column_stack((training_metrics['PPO Agent']['actions'], train
                training_metrics['SAC Agent']['actions'], training_metrics['TD3 Agent']['actions']))
 meta_labels = np.array(best_actions)  # Target is now the best action
 
-meta_model = RandomForestRegressor(n_estimators=50, random_state=42)
+#meta_model = RandomForestRegressor(n_estimators=50, random_state=42)
+meta_model = xgb.XGBRegressor(
+    n_estimators=200,       # Number of trees
+    learning_rate=0.01,      # Step size shrinkage
+    max_depth=5,            # Maximum tree depth
+    subsample=0.8,          # Fraction of samples per tree
+    colsample_bytree=0.8,   # Fraction of features per tree
+    random_state=42         # For reproducibility
+)
 meta_features = meta_features.reshape(meta_features.shape[0], -1)
 meta_labels = meta_labels.reshape(meta_labels.shape[0], -1)
 print("Meta Labels Shape: ", meta_labels.shape)
