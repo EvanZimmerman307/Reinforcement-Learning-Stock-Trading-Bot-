@@ -49,7 +49,7 @@ def add_technical_indicators(df):
 
     return df
 
-def create_env_and_train_agents(data, vix_data, timesteps):
+def train_agents(data, vix_data, timesteps):
     # Create the environment using DummyVecEnv with training data
     env = DummyVecEnv([lambda: StockTradingEnv(data, vix_data)])
 
@@ -86,8 +86,8 @@ for ticker in tickers:
     stock_data[ticker] = df
 
 # the date ranges matter a lot
-# vix_data = None
 vix_data = pd.read_csv(f'data_current/^VIX.csv', index_col='Date', parse_dates=True)
+
 # split the data into training, validation and test sets
 training_data_time_range = ('2009-01-01', '2016-12-31') # 70% #  '2009-06-01', '2020-03-18' 7 years
 validation_data_time_range = ('2017-01-01', '2017-12-31') # 15% '2020-03-19', '2022-07-11')
@@ -104,9 +104,11 @@ for ticker, df in stock_data.items():
     training_data[ticker] = df.loc[training_data_time_range[0]:training_data_time_range[1]]
     validation_data[ticker] = df.loc[validation_data_time_range[0]:validation_data_time_range[1]]
     test_data[ticker] = df.loc[test_data_time_range[0]:test_data_time_range[1]]
+
 vix_training_data = vix_data.loc[training_data_time_range[0]:training_data_time_range[1]]
 vix_validation_data = vix_data.loc[validation_data_time_range[0]:validation_data_time_range[1]]
 vix_test_data = vix_data.loc[test_data_time_range[0]:test_data_time_range[1]]
+
 # add technical indicators to the training data for each stock
 for ticker, df in training_data.items():
     training_data[ticker] = add_technical_indicators(df)
@@ -119,17 +121,21 @@ for ticker, df in validation_data.items():
 for ticker, df in test_data.items():
     test_data[ticker] = add_technical_indicators(df)
 
+# drop the beginning of the vix data that got dropped by calculating technical indicators
+vix_training_data = vix_training_data.iloc[19:]
+
 # print shape of training, validation and test data
 ticker = 'MMM'
 print(f'Training data shape for {ticker}: {training_data[ticker].shape}')
 print(f'Validation data shape for {ticker}: {validation_data[ticker].shape}')
 print(f'Test data shape for {ticker}: {test_data[ticker].shape}')
 
-print(test_data["MMM"].head())
+print(training_data["MMM"].head())
+print(vix_training_data.head())
 
 # Create the environment and train the agents
-total_timesteps = 10000 # 10,000 days of training, try 20?
-env, ppo_agent, a2c_agent, ddpg_agent, sac_agent, td3_agent = create_env_and_train_agents(training_data, vix_training_data, total_timesteps)
+total_timesteps = 50000 #was 10,000 ~ 5 episodes, 50,000 ~ 25 episodes
+env, ppo_agent, a2c_agent, ddpg_agent, sac_agent, td3_agent = train_agents(training_data, vix_training_data, total_timesteps)
 
 
 

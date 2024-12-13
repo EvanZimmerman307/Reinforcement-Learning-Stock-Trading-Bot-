@@ -47,9 +47,9 @@ class PPOAgent:
         if not load:
             self.model = PPO("MlpPolicy", env, verbose=1, seed=1)
             self.model.learn(total_timesteps=total_timesteps)
-            self.model.save("ppo")
+            self.model.save("ppo_50k")
         else:
-            self.model = PPO.load("ppo")
+            self.model = PPO.load("ppo_50k")
     
     def predict(self, obs):
         action, _ = self.model.predict(obs)
@@ -61,9 +61,9 @@ class A2CAgent:
         if not load:
             self.model = A2C("MlpPolicy", env, verbose=1, seed=1)
             self.model.learn(total_timesteps=total_timesteps)
-            self.model.save("a2c")
+            self.model.save("a2c_50k")
         else:
-            self.model = A2C.load("a2c")
+            self.model = A2C.load("a2c_50k")
     
     def predict(self, obs):
         action, _ = self.model.predict(obs)
@@ -75,9 +75,9 @@ class DDPGAgent:
         if not load:
             self.model = DDPG("MlpPolicy", env, verbose=1, seed=1)
             self.model.learn(total_timesteps=total_timesteps)
-            self.model.save("ddpg")
+            self.model.save("ddpg_50k")
         else:
-            self.model = DDPG.load("ddpg")
+            self.model = DDPG.load("ddpg_50k")
     
     def predict(self, obs):
         action, _ = self.model.predict(obs)
@@ -89,9 +89,9 @@ class SACAgent:
         if not load:
             self.model = SAC("MlpPolicy", env, verbose=1, seed=1)
             self.model.learn(total_timesteps=total_timesteps)
-            self.model.save("sac")
+            self.model.save("sac_50k")
         else:
-            self.model = SAC.load("sac")
+            self.model = SAC.load("sac_50k")
     
     def predict(self, obs):
         action, _ = self.model.predict(obs)
@@ -103,9 +103,9 @@ class TD3Agent:
         if not load:
             self.model = TD3("MlpPolicy", env, verbose=1, seed=1)
             self.model.learn(total_timesteps=total_timesteps)
-            self.model.save("td3")
+            self.model.save("td3_50k")
         else:
-            self.model = TD3.load("td3")
+            self.model = TD3.load("td3_50k")
     
     def predict(self, obs):
         action, _ = self.model.predict(obs)
@@ -120,7 +120,7 @@ class MetaRfAgent:
         self.td3_model = td3_model
         self.meta_model = meta_model
     
-    def predict(self, obs):
+    def predict(self, obs): #vix):
         ppo_action, _ = self.ppo_model.predict(obs)
         a2c_action, _ = self.a2c_model.predict(obs)
         ddpg_action, _ = self.ddpg_model.predict(obs)
@@ -129,11 +129,9 @@ class MetaRfAgent:
 
         combined_actions = np.concatenate((ppo_action, a2c_action, ddpg_action, sac_action, td3_action))
         combined_actions = combined_actions.reshape(1, -1)
-        print(combined_actions.shape)
         
         # Predict best action
         predicted_actions = self.meta_model.predict(combined_actions)
-        print(predicted_actions)
 
         return predicted_actions
 

@@ -51,16 +51,6 @@ dow_close_prices = stock_data['^DJI']['Close']
 # Initial investment amount
 initial_investment = 10000
 
-# Calculate the number of "shares" purchased at the initial price
-# print(dow_close_prices)
-# initial_price = dow_close_prices['2018-01-02']
-# df['date'] == target_date
-# target_date = "2018-01-02"
-# initial_price = 1
-# print(dow_close_prices.index)
-# if target_date in dow_close_prices.index:
-#     initial_price = dow_close_prices.loc[target_date, 'Close']
-# print(initial_price)
 shares_purchased = initial_investment / 26076 # price at 2018-01-30, which is when we would start
 
 # Simulate portfolio value over time

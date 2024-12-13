@@ -50,19 +50,18 @@ def add_technical_indicators(df):
 
     return df
 
-def test_agent(env, agent, stock_data, n_tests, visualize=False):
+def test_agent(env, agent, agent_name, stock_data, n_tests):
     """
-    Test a single agent and track performance metrics, with an option to visualize the results.
+    Test a single agent and track performance metrics.
 
     Parameters:
     - env: The trading environment.
     - agent: The agent to be tested.
     - stock_data: Data for the stocks in the environment.
     - n_tests: Number of tests to run. This is the total number of steps you take on the environment. Should be the length of the test set.
-    - visualize: Boolean flag to enable or disable visualization (default: False).
 
     Returns:
-    - A dictionary containing steps, balances, net worth, and shares held.
+    - A dictionary containing metrics
     """
     # Initialize metrics tracking
     metrics = {
@@ -71,37 +70,49 @@ def test_agent(env, agent, stock_data, n_tests, visualize=False):
         'net_worth': [],
         'shares_held': {ticker: [] for ticker in stock_data.keys()},
         'actions': [],
-        'rewards': []
+        'rewards': [],
+        "returns": [],
+        "total shares sold": 0,
+        "total sales value": 0
     }
 
     # Reset the environment before starting the tests
     obs = env.reset()
 
-    # Is one iteration a day?
+    # get vix_data
+    vix_data = env.get_attr('vix_data')
+
     for i in range(n_tests):
         metrics['steps'].append(i)
+
         action = agent.predict(obs)
+
         metrics['actions'].append(action)
         obs, rewards, done, infos = env.step(action)
         metrics['rewards'].append(rewards)
-        if visualize:
-            env.render()
+        
 
         # Track metrics
         metrics['balances'].append(env.get_attr('balance')[0])
         metrics['net_worth'].append(env.get_attr('net_worth')[0])
         env_shares_held = env.get_attr('shares_held')[0]
+        
+        # total net worth - cash = portfolio value
+        portfolio_value = metrics['net_worth'][-1] - metrics['balances'][-1]
+        metrics["returns"].append(portfolio_value)
 
         # Update shares held for each ticker
         for ticker in stock_data.keys():
             metrics['shares_held'][ticker].append(env_shares_held[ticker])
             
         if done:
+            metrics["total shares sold"] = env.get_attr('total_shares_sold')[0],
+            metrics["total sales value"] = env.get_attr('total_sales_value')[0]
             obs = env.reset()
-            
+              
     return metrics
 
-def visualize_multiple_portfolio_net_worth(steps, net_worths_list, labels, dji_test_data=None):
+def visualize_net_worth(steps, net_worths_list, labels, dji_test_data=None):
     plt.figure(figsize=(12, 6))
     for i, net_worths in enumerate(net_worths_list):
         plt.plot(steps, net_worths, label=labels[i])
@@ -121,7 +132,7 @@ def test_all_agents(agents, test_data, test_vix, n_tests=1000):
         # create a new test environment for testing each agent
         env = DummyVecEnv([lambda: StockTradingEnv(test_data, test_vix)])
         print(f"Testing {agent_name}...")
-        metrics[agent_name] = test_agent(env, agent, test_data, n_tests=n_tests, visualize=True)
+        metrics[agent_name] = test_agent(env, agent, agent_name, test_data, n_tests=n_tests)
         print(f"Done testing {agent_name}!")
     
     print('-'*50)
@@ -134,12 +145,12 @@ def test_all_agents(agents, test_data, test_vix, n_tests=1000):
 def calc_weights(validation_results, initial_balance):
     # initialize weights to be the reward over validation set
     weights = {}
-    for agent in list(validation_metrics.keys()):
+    for agent in list(validation_results.keys()):
         # only consider the agents that went positive in the ensemble
-        if validation_metrics[agent]['net_worth'][-1] > initial_balance:
-            weights[agent] = validation_metrics[agent]['net_worth'][-1]
+        if validation_results[agent]['net_worth'][-1] > initial_balance:
+            weights[agent] = validation_results[agent]['net_worth'][-1]
 
-    # normalize weights?
+    # normalize weights
     total_reward = sum(weights.values())
     for agent in list(weights.keys()):
         weights[agent] = weights[agent] / total_reward
@@ -173,12 +184,14 @@ test_data_time_range = ('2018-01-01', '2022-05-08') # 15% '2022-07-12', '2024-11
 training_data = {}
 validation_data = {}
 test_data = {}
+test_stock_returns = pd.DataFrame()
 
 # split the data dictionary into subdictionaries for training, validation, testing
 for ticker, df in stock_data.items():
     training_data[ticker] = df.loc[training_data_time_range[0]:training_data_time_range[1]]
     validation_data[ticker] = df.loc[validation_data_time_range[0]:validation_data_time_range[1]]
     test_data[ticker] = df.loc[test_data_time_range[0]:test_data_time_range[1]]
+    test_stock_returns[ticker] = df.loc[test_data_time_range[0]:test_data_time_range[1]]["Close"]
 
 vix_training_data = vix_data.loc[training_data_time_range[0]:training_data_time_range[1]]
 vix_validation_data = vix_data.loc[validation_data_time_range[0]:validation_data_time_range[1]]
@@ -198,14 +211,26 @@ for ticker, df in validation_data.items():
 for ticker, df in test_data.items():
     test_data[ticker] = add_technical_indicators(df)
 
+# drop the beginning of the vix data that got dropped by calculating technical indicators
+vix_training_data = vix_training_data.iloc[19:]
+vix_validation_data = vix_validation_data.iloc[19:]
+vix_test_data = vix_test_data.iloc[19:]
+
 # print shape of training, validation and test data
 ticker = 'MMM'
 print(f'Training data shape for {ticker}: {training_data[ticker].shape}')
 print(f'Validation data shape for {ticker}: {validation_data[ticker].shape}')
 print(f'Test data shape for {ticker}: {test_data[ticker].shape}')
 
+print(training_data[ticker].tail())
+print(vix_training_data.tail())
+print(len(vix_training_data))
+
+print(validation_data[ticker].head())
+print(vix_validation_data.head())
+
 print(test_data[ticker].head())
-print(len(test_data))
+print(vix_test_data.head())
 
 # load the models
 ppo_agent = PPOAgent(load=True)
@@ -215,8 +240,7 @@ sac_agent = SACAgent(load=True)
 td3_agent = TD3Agent(load=True)
 
 #agents for validation, 
-#n_tests = 559 even though length of original validation is 582 because adding adding TAs drops the beginning of the df
-n_tests = 230 
+n_tests = 231 
 initial_balance = 10000
 validation_agents = {
     'PPO Agent': ppo_agent,
@@ -239,10 +263,11 @@ validation_net_worth = [validation_metrics[agent]['net_worth'] for agent in list
 
 # for agent in list(validation_agents.keys()):
 #     print("Agent: ", agent, " net worth: ", validation_metrics[agent]['net_worth'])
-visualize_multiple_portfolio_net_worth(validation_metrics['PPO Agent']['steps'], validation_net_worth, list(validation_agents.keys()))
+
+visualize_net_worth(validation_metrics['PPO Agent']['steps'], validation_net_worth, list(validation_agents.keys()))
 
 # META ENSEMBLE ATTEMPT-------------------
-training_tests = 1993
+training_tests = 1994
 training_metrics = test_all_agents(validation_agents, training_data, vix_training_data, n_tests = training_tests)
 # combine all the rewards
 combined_rewards = []
@@ -260,25 +285,29 @@ for i in range(len(combined_rewards)):
     best_actions.append(best_action)
 
 # Train meta-model using agent actions as features and best_actions as targets
-meta_features = np.column_stack((training_metrics['PPO Agent']['actions'], training_metrics['A2C Agent']['actions'], training_metrics['DDPG Agent']['actions'],
-               training_metrics['SAC Agent']['actions'], training_metrics['TD3 Agent']['actions']))
+meta_features = np.column_stack((training_metrics['PPO Agent']['actions'], training_metrics['A2C Agent']['actions'], training_metrics['DDPG Agent']['actions'], 
+                                 training_metrics['SAC Agent']['actions'], training_metrics['TD3 Agent']['actions']))
+
 meta_labels = np.array(best_actions)  # Target is now the best action
 
 #meta_model = RandomForestRegressor(n_estimators=50, random_state=42)
 meta_model = xgb.XGBRegressor(
-    n_estimators=200,       # Number of trees
-    learning_rate=0.01,      # Step size shrinkage
-    max_depth=5,            # Maximum tree depth
+    n_estimators=500,       # Number of trees
+    learning_rate=0.001,      # Step size shrinkage
+    max_depth=6,            # Maximum tree depth
     subsample=0.8,          # Fraction of samples per tree
     colsample_bytree=0.8,   # Fraction of features per tree
     random_state=42         # For reproducibility
 )
 meta_features = meta_features.reshape(meta_features.shape[0], -1)
+
 meta_labels = meta_labels.reshape(meta_labels.shape[0], -1)
+
 print("Meta Labels Shape: ", meta_labels.shape)
 print("Meta Features Shape: ", meta_features.shape)
+
 meta_model.fit(meta_features, meta_labels)
-print("Trained Random forest!")
+print("Trained XGBoost")
 
 #--------------------------------------
 
@@ -296,7 +325,7 @@ test_agents = {
     'DDPG Agent': ddpg_agent, 
     'SAC Agent': sac_agent,
     'TD3 Agent': td3_agent,
-    "Simple Avg Ensemble": simple_avg_agent,
+    #"Simple Avg Ensemble": simple_avg_agent,
     "Weighted Avg Ensemble": weighted_avg_agent,
     "Meta Agent": meta_agent
 }
@@ -308,6 +337,9 @@ test_metrics = test_all_agents(test_agents, test_data, vix_test_data, n_tests=n_
 test_net_worth = [test_metrics[agent]['net_worth'] for agent in list(test_agents.keys())]
 cumulative_rewards = {}
 max_draw = {}
+total_shares_sold = {}
+total_sales_value = {}
+
 for agent in list(test_agents.keys()):
     cumulative_rewards[agent] = (test_metrics[agent]['net_worth'][-1] - test_metrics[agent]['net_worth'][0]) / test_metrics[agent]['net_worth'][0]
     # Step 1: Calculate the running maximum
@@ -320,6 +352,10 @@ for agent in list(test_agents.keys()):
     max_drawdown = np.min(drawdowns)
 
     max_draw[agent] = max_drawdown
+
+    total_shares_sold[agent] = test_metrics[agent]["total shares sold"]
+    total_sales_value[agent] = test_metrics[agent]["total sales value"]
+
 
 print(dji_test_data.head(21)) # dropping the beginning for TAs in test data
 dji_prices = dji_test_data['Portfolio Value'].to_numpy()
@@ -339,9 +375,83 @@ max_drawdown = np.min(drawdowns)
 
 max_draw["^DJI"] = max_drawdown
 
+# Create a DataFrame
+prices = pd.DataFrame(test_stock_returns)
+
+# Step 1: Calculate daily returns
+returns = prices.pct_change().dropna()
+
+# Step 2: Calculate the covariance matrix of returns
+cov_matrix = returns.cov()
+
+annual_volatility = {}
+sharpe_ratio = {}
+# define portfotlio weights
+for agent in list(test_agents.keys()):
+    print("Agent: ", agent)
+    weights = []
+    for ticker in list(test_metrics[agent]["shares_held"].keys()):
+        # volatility
+        final_shares_held = test_metrics[agent]["shares_held"][ticker][-1] # final shares held
+        print("Ticker: ", ticker)
+        print("final_shares_held: ", final_shares_held)
+        final_price = test_stock_returns[ticker].iloc[-1]
+        print("final_price: ", final_price)
+        total_amount_held = final_shares_held * final_price # total amount of a stock held
+        ticker_weight = total_amount_held / test_metrics[agent]["returns"][-1] # divide by final portfolio value
+        weights.append(ticker_weight)
+
+    weights = np.array(weights) # weights at the end of testing
+    
+    # sharpe
+    # Step 1: Calculate daily returns
+    returns = test_stock_returns.pct_change().dropna()
+
+    # Step 3: Calculate portfolio returns
+    portfolio_returns = returns.dot(weights) # total return each day as a %
+
+    portfolio_variance = np.dot(weights.T, np.dot(cov_matrix, weights))
+    portfolio_volatility = np.sqrt(portfolio_variance)
+    annual_volatility[agent] = portfolio_volatility * np.sqrt(252)
+
+    # Step 5: Assume a risk-free rate (annualized, e.g., 2%)
+    risk_free_rate = 0.02
+    daily_risk_free_rate = (1 + risk_free_rate) ** (1 / 252) - 1
+
+    # Step 6: Calculate excess returns
+    excess_returns = portfolio_returns - daily_risk_free_rate # excess returns vs "guranteed investment"
+
+    # Step 7: Calculate Sharpe Ratio
+    mean_excess_return = excess_returns.mean()
+    sharpe = mean_excess_return / portfolio_volatility
+
+    # Annualized Sharpe Ratio
+    annualized_sharpe_ratio = sharpe * np.sqrt(252)
+
+    sharpe_ratio[agent] = annualized_sharpe_ratio
+
+# Calculate DJI drawdown and volatility
+dji_returns = pd.Series(dji_prices).pct_change().dropna()
+
+dji_daily_volatility = dji_returns.std()
+
+# annualize volatility
+dji_annualized_vol = dji_daily_volatility * np.sqrt(252)
+
+annual_volatility["^DJI"] = dji_annualized_vol
+
 print("Cumulative Rewards: ")
 print(cumulative_rewards)
 print("Max DrawDown: ")
 print(max_draw)
+print("Annual Volatility: ")
+print(annual_volatility)
+# print("Sharpe_Ratio: ")
+# print(sharpe_ratio)
+# print("Total shares sold:")
+# print(total_shares_sold)
+# print("Total sales value:")
+# print(total_sales_value)
 
-visualize_multiple_portfolio_net_worth(test_metrics['PPO Agent']['steps'], test_net_worth, list(test_agents.keys()), dji_prices)
+
+visualize_net_worth(test_metrics['PPO Agent']['steps'], test_net_worth, list(test_agents.keys()), dji_prices)
