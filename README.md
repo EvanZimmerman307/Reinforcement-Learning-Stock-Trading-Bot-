@@ -1,4 +1,4 @@
-# Reinforcement-Learning-Stock-Trading-Bot
+# Reinforcement Learning Stock Trading Bot
 
 ## Overview
 This repository contains the implementation of Sai Vaka and Evan Zimmerman's CSE 592 final project. The project focuses on developing deep reinforcement learning (DRL) agents and ensemble strategies to optimize stock trading in dynamic and stochastic financial markets. The goal is to maximize portfolio returns while mitigating risks associated with market volatility and transaction costs.
