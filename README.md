@@ -6,8 +6,8 @@ This repository contains the implementation of Sai Vaka and Evan Zimmerman's CSE
 ### Key Features
 - Implementation of five actor-critic DRL algorithms: PPO, A2C, DDPG, SAC, and TD3.
 - Ensemble strategies for robust decision-making: simple averaging, weighted averaging, and a meta-agent.
-- A custom stock trading environment built on OpenAI Gym, simulating realistic trading scenarios.
-- Data preprocessing, including calculation of technical indicators (MACD, RSI, CCI, ADX) and normalization for model training.
+- A custom stock trading environment built on Gymnasium, simulating realistic trading scenarios.
+- Data preprocessing, including calculation of technical indicators (MACD, RSI, CCI, ADX) for model training.
 
 ---
 
@@ -22,26 +22,22 @@ pip install -r requirements.txt
 
 ### Dataset
 
-The dataset consists of daily stock data for the Dow Jones 30 stocks, spanning January 2009 to November 2024. It includes:
+The dataset consists of daily stock data for the Dow Jones 30 stocks, spanning January 2009 to May 2022. It includes:
 
 - **Features**: Open, High, Low, Close, Adjusted Close, Volume, and calculated technical indicators (MACD, RSI, CCI, ADX).
 - The dataset is split into:
-  - **Training Set**: 70% (2009–2016)
-  - **Validation Set**: 15% (2017)
-  - **Test Set**: 15% (2018–2022)
+  - **Training Set**: (2009–2016)
+  - **Validation Set**: (2017)
+  - **Test Set**: (2018–2022)
 
 ## Running the Project
 
 
 ### 1. Data Preprocessing (Only if you add more stock data)
 
-The `data.py` script preprocesses the stock data by:
+The `data.py` script downloands raw stock data from Yahoo Financo:
 
-- Loading raw data from Yahoo Finance.
-- Calculating technical indicators (e.g., MACD, RSI, CCI, ADX).
-- Handling missing data and normalizing the dataset for stability.
-
-Run the preprocessing script independently if needed:
+Run the script independently if needed, but Dow Jones 30 data is present in the repository in csv format:
 ```bash
 python data.py
 ```
@@ -54,7 +50,7 @@ python train.py
 
 ### 3. Evaluate the Agents and Ensemble Strategies
 
-Evaluate the performance of the trained agents and test ensemble strategies (simple averaging, weighted averaging, and meta-agent). The evaluation calculates metrics like cumulative returns and Sharpe ratio:
+Evaluate the performance of the trained agents and test ensemble strategies (simple averaging, weighted averaging, and meta-agent). The evaluation calculates metrics like cumulative returns and annual volatility:
 
 ```bash
 python eval.py
@@ -82,8 +78,8 @@ The agents are based on the Actor-Critic framework:
 ---
 
 ## Results
-- **Individual Agents**: Each DRL algorithm performed well in specific market conditions but had limitations.
-- **Ensemble Strategies**: Demonstrated improved stability and adaptability, with better risk-adjusted returns compared to individual agents.
+- **Individual Agents**: Some DRL algorithm performed well in specific market conditions but had limitations.
+- **Ensemble Strategies**: Demonstrated improved stability, with slightly lower returns compared to the highest performing agents.
 - **Metrics**: Evaluated using cumulative returns, volatility, and max drawdown 
 ---
 
